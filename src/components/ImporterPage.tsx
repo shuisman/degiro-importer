@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import type { ActivityImport, ActivityCreate, Account, HostAPI, ImportActivitiesSummary } from '../types';
 import { parseCsv } from '../parser/csv';
-import { mapToActivities } from '../parser/mapper';
+import { mapToActivities, findUnrecognised } from '../parser/mapper';
 import { extractUniqueSymbols, applyMappings } from '../parser/symbols';
 import FileUpload from './FileUpload';
 import ActivityTable from './ActivityTable';
@@ -30,6 +30,7 @@ export default function ImporterPage({ api }: Props) {
   const [clearConfirmInput, setClearConfirmInput] = useState('');
   const [result, setResult]             = useState<ImportActivitiesSummary | null>(null);
   const [error, setError]               = useState<string | null>(null);
+  const [unrecognised, setUnrecognised] = useState<string[]>([]);
 
   // ── Step 1: file uploaded → go to symbol mapping ───────────────────────────
 
@@ -46,6 +47,7 @@ export default function ImporterPage({ api }: Props) {
       }
 
       setRawActivities(acts);
+      setUnrecognised(findUnrecognised(rows));
       setAccounts(accs);
       setAccountId(accs[0]?.id ?? '');
       setStage('mapping');
@@ -77,6 +79,7 @@ export default function ImporterPage({ api }: Props) {
 
       // Convert to ActivityCreate — bypasses the broken import flow, gives
       // per-activity errors so we can see exactly what the server rejects
+      const accountCurrency = accounts.find(acc => acc.id === accountId)?.currency;
       const creates: ActivityCreate[] = activities.map(a => {
         const isCash = !a.symbol || a.symbol.startsWith('$CASH-');
         return {
@@ -88,7 +91,12 @@ export default function ImporterPage({ api }: Props) {
           unitPrice: a.unitPrice ?? null,
           amount: a.amount ?? null,
           fee: a.fee ?? null,
+          tax: a.tax ?? null,
           comment: a.comment ?? null,
+          // DeGiro's own conversion rate; only meaningful into the account currency
+          fxRate: a.fxRate != null && a.fxCurrency === accountCurrency ? a.fxRate : null,
+          sourceGroupId: a.sourceGroupId,
+          metadata: a.metadata,
           // quoteCcy is required for all activities — even cash ones (no symbol)
           asset: isCash
             ? { quoteCcy: a.currency }
@@ -102,6 +110,14 @@ export default function ImporterPage({ api }: Props) {
       try {
         const saveResult = await api.activities.saveMany({ creates });
         imported = saveResult.created.length;
+        const flagged = saveResult.created.filter(c => c.needsReview || c.status !== 'POSTED');
+        for (const c of flagged) {
+          api.logger.info(
+            `needs review: ${c.activityType} ${c.activityDate} status=${c.status} ` +
+            `qty=${c.quantity} price=${c.unitPrice} amount=${c.amount} fee=${c.fee} ` +
+            `ccy=${c.currency} fx=${c.fxRate} asset=${c.assetId}`,
+          );
+        }
         const byError = saveResult.errors.reduce<Record<string, number>>((acc, e) => {
           const key = e.message ?? 'unknown';
           acc[key] = (acc[key] ?? 0) + 1;
@@ -157,6 +173,7 @@ export default function ImporterPage({ api }: Props) {
   function reset() {
     setStage('idle');
     setRawActivities([]);
+    setUnrecognised([]);
     setActivities([]);
     setAccounts([]);
     setAccountId('');
@@ -364,6 +381,21 @@ export default function ImporterPage({ api }: Props) {
       </div>
 
       {error && <ErrorBanner message={error} />}
+
+      {unrecognised.length > 0 && (
+        <Alert>
+          <Icons.AlertCircle className="h-4 w-4" />
+          <AlertTitle>
+            {unrecognised.length} unrecognised {unrecognised.length === 1 ? 'description' : 'descriptions'} not imported
+          </AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            <p>These rows moved money but don't match a known DeGiro transaction type. Please report them on GitHub so they can be supported:</p>
+            <ul className="mt-1 list-disc pl-5 font-mono text-xs">
+              {unrecognised.map(d => <li key={d}>{d}</li>)}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* ── Table ── */}
       <div className="flex-1 overflow-auto">

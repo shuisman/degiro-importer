@@ -80,6 +80,7 @@ export default function ActivityTable({ activities, onChange }: Props) {
               <th className="px-3 py-2 text-right whitespace-nowrap">Unit price</th>
               <th className="px-3 py-2 text-left">Ccy</th>
               <th className="px-3 py-2 text-right">Fee</th>
+              <th className="px-3 py-2 text-right">Tax</th>
               <th className="px-3 py-2 text-right">Amount</th>
               <th className="px-3 py-2 text-left">Comment</th>
             </tr>
@@ -89,6 +90,7 @@ export default function ActivityTable({ activities, onChange }: Props) {
               const qty   = toNum(a.quantity);
               const price = toNum(a.unitPrice);
               const fee   = toNum(a.fee);
+              const tax   = toNum(a.tax);
               const amt   = toNum(a.amount);
               return (
                 <tr
@@ -128,6 +130,9 @@ export default function ActivityTable({ activities, onChange }: Props) {
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs">
                     {fee > 0 ? fee.toFixed(2) : '—'}
+                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs">
+                    {tax > 0 ? tax.toFixed(2) : '—'}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono text-xs font-medium">
                     {amt.toFixed(2)}

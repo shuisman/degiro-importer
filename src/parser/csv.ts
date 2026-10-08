@@ -85,7 +85,8 @@ export function parseCsv(content: string): DeGiroRow[] {
       mutatieAmount: parseAmount(f[8]),
       saldoCurrency: f[9].trim(),
       saldoAmount: parseAmount(f[10]),
-      orderId: (f[11] ?? '').trim(),
+      // "-1" marks rows without a real order (product changes, transfer fees)
+      orderId: (f[11] ?? '').trim().replace(/^-1$/, ''),
     });
   }
 
