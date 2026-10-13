@@ -56,9 +56,10 @@ function classify(row: DeGiroRow): RowKind {
   // ── Trades ────────────────────────────────────────────────────────────────
 
   // "Koop 14 @ 119,285 EUR"  /  "Koop 13 @ 428 USD"
-  if (/^koop\s+[\d,]+\s+@/i.test(row.description)) return 'BUY';
+  // Numbers may contain "." thousands separators: "Koop 1.000 @ 1.234,5 EUR"
+  if (/^koop\s+[\d.,]+\s+@/i.test(row.description)) return 'BUY';
   // "Verkoop 84 @ 122 EUR"
-  if (/^verkoop\s+[\d,]+\s+@/i.test(row.description)) return 'SELL';
+  if (/^verkoop\s+[\d.,]+\s+@/i.test(row.description)) return 'SELL';
 
   // ── Fees ──────────────────────────────────────────────────────────────────
 
@@ -116,11 +117,13 @@ interface TradeInfo {
  * Handles: "Koop 14 @ 119,285 EUR"  "Verkoop 84 @ 122 EUR"  "Koop 13 @ 428 USD"
  */
 function parseTradeDescription(desc: string): TradeInfo | null {
-  const m = desc.match(/(?:koop|verkoop)\s+([\d,]+)\s+@\s+([\d,]+)\s+(\w+)/i);
+  const m = desc.match(/(?:koop|verkoop)\s+([\d.,]+)\s+@\s+([\d.,]+)\s+(\w+)/i);
   if (!m) return null;
+  // European locale: strip "." thousands separators, "," is the decimal
+  const num = (s: string) => parseFloat(s.replace(/\./g, '').replace(',', '.'));
   return {
-    quantity: parseFloat(m[1].replace(',', '.')),
-    price: parseFloat(m[2].replace(',', '.')),
+    quantity: num(m[1]),
+    price: num(m[2]),
     currency: m[3].toUpperCase(),
   };
 }
