@@ -88,6 +88,7 @@ export default function ImporterPage({ api }: Props) {
           unitPrice: a.unitPrice ?? null,
           amount: a.amount ?? null,
           fee: a.fee ?? null,
+          tax: a.tax ?? null,
           comment: a.comment ?? null,
           // quoteCcy is required for all activities — even cash ones (no symbol)
           asset: isCash
